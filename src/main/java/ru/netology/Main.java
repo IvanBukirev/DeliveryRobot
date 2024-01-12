@@ -1,8 +1,6 @@
 package ru.netology;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Random;
+import java.util.*;
 
 
 public class Main {
@@ -20,36 +18,55 @@ public class Main {
         return route.toString();
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws InterruptedException {
+        List<Thread> threadList = new ArrayList<>();
+        Thread printer = new Thread(() -> {
+            while (!Thread.interrupted()) {
+                synchronized (sizeToFreq) {
+                    try {
+                        sizeToFreq.wait();
+                    } catch (InterruptedException e) {
+                        return;
+                    }
+                    printLeader();
+                }
+            }
+        });
+        printer.start();
 
         for (int i = 0; i < AMOUNT_OF_THREADS; i++) {
-            new Thread(() -> {
-                String route = generateRoute(LETTERS, ROUTE_LENGTH);
-                int frequtncy = (int) route.chars().filter(ch -> ch == 'R').count();
-                synchronized (sizeToFreq) {
-                    if (sizeToFreq.containsKey(frequtncy)) {
-                        sizeToFreq.put(frequtncy, sizeToFreq.get(frequtncy) + 1);
-                    } else {
-                        sizeToFreq.put(frequtncy, 1);
-                    }
-                }
-
-            }).start();
+            threadList.add(getThread());
         }
+        for (Thread thread : threadList) {
+            thread.start();
+            thread.join();
+        }
+        printer.interrupt();
 
+    }
+
+    public static Thread getThread() {
+        return new Thread(() -> {
+            String route = generateRoute(LETTERS, ROUTE_LENGTH);
+            int frequency = (int) route.chars().filter(ch -> ch == 'R').count();
+            synchronized (sizeToFreq) {
+                if (sizeToFreq.containsKey(frequency)) {
+                    sizeToFreq.put(frequency, sizeToFreq.get(frequency) + 1);
+                } else {
+                    sizeToFreq.put(frequency, 1);
+                }
+                sizeToFreq.notify();
+            }
+        });
+    }
+
+    public static void printLeader() {
         Map.Entry<Integer, Integer> max = sizeToFreq
                 .entrySet()
                 .stream()
                 .max(Map.Entry.comparingByValue())
                 .get();
-        System.out.println("Самое частое количество повторений " + max.getKey()+" (встретилось "+ max.getValue() + " раз)");
-
-        System.out.println("Другие размеры:");
-        sizeToFreq
-                .entrySet()
-                .stream()
-                .forEach(e -> System.out.println(" - " + e.getKey() + " (" + e.getValue() + " раз)"));
-
-
+        System.out.println("Текущий лидер " + max.getKey()
+                + " (встретилось " + max.getValue() + " раз)");
     }
 }
